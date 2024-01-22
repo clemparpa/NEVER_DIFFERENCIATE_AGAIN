@@ -4,20 +4,16 @@ Voici une implementation simpliste d'un systeme d'auto-differentation (calcul au
 pytorch.
 
 Les algorithmes d'autodifférentiation ne repose que sur une règle: **La dérivation de fonction composée**.
-Pour pouvoir automatiquement calculer les dérivées de n'importe quelle fonction, on va définir des fonctions élémentaires (l'addition, la multiplication, le log) et leur dérivées puis appliquer la formule de composition des dérivées avec ces fonctions élémentaires. 
+Pour pouvoir automatiquement calculer les dérivées de n'importe quelle fonction, on va définir des fonctions élémentaires (l'addition, la multiplication, le log) et leur dérivées puis appliquer la formule de composition des dérivées avec ces fonctions élémentaires.
 
-Les éléments principaux sont du framework sont: 
+Les éléments principaux sont du framework sont:
 
 - Les objets `Tensor` qui représentent les données dans le framework
 - Les classes `Function` qui définissent les différentes opérations élémentaires applicables aux `Tensors`
 
-
-
 ## Classe Tensor
 
-La classe `Tensor` est la pierre angulaire du système d'autodifférenciation. Elle instancie des tenseurs, des structures de données permettant aussi de stocker des gradients. 
-
-
+La classe `Tensor` est la pierre angulaire du système d'autodifférenciation. Elle instancie des tenseurs, des structures de données permettant aussi de stocker des gradients.
 
 ```python
 from typing import Any, Callable, Sequence
@@ -39,7 +35,7 @@ class Tensor:
         if isinstance(value, ndarray):
             return value.astype(float)
         return value
-    
+
     def __len__(self):
         if isinstance(self.value, ndarray):
             return len(self.value)
@@ -47,12 +43,12 @@ class Tensor:
 
     def __init__(self, value: TensorLike, inputs: Sequence['Tensor'] = [], gradfn: BackwardFunction | None = None):
         """ initialisation d'un Tensor.
-        
+
             args:
-                - value(TensorLike): 
+                - value(TensorLike):
                     valeur du tenseur. accepte les memes entrées qu'un array numpy
                 - inputs(Tensor[] = []):
-                    les tenseurs dépendant de celui-ci pour l'autodiff. Il ne devraient pas 
+                    les tenseurs dépendant de celui-ci pour l'autodiff. Il ne devraient pas
                     être renseignées manuellement.
                 - gradfn(BackwardFunction | None = None)
                     la dérivée de ce tenseur. Elle ne devrait pas être renseignée manuellement.
@@ -75,11 +71,11 @@ class Tensor:
             grad_output = self.__class__(1.)
 
         if self._gradfn is None:
-            raise ValueError('gradient not provided. Run Forward before')           
+            raise ValueError('gradient not provided. Run Forward before')
 
         output = self._gradfn(self._inputs, grad_output)
 
-        for index, input_ in enumerate(self._inputs): 
+        for index, input_ in enumerate(self._inputs):
             if input_._gradfn:
                 input_.backward(output[index])
 
@@ -94,7 +90,6 @@ On définit aussi un wrapper sur le constructeur de la clase `Tensor` pour simpl
 Si `value` est déjà une instance de `Tensor`, la fonction renvoie simplement cette instance. Sinon, elle crée un nouveau tenseur en utilisant les paramètres fournis.
 
 Cela permet une utilisation plus fluide et concise pour créer des tenseurs dans le système d'autodifférenciation.
-
 
 ```python
 def tensor(value: TensorLike, inputs: Sequence['Tensor'] = [], gradfn: BackwardFunction | None = None):
@@ -117,7 +112,6 @@ Voici les points clés de la classe `Function` :
 
 En utilisant ces deux classes, on peut définir facilement de nouvelles opérations pour l'autodifférenciation dans le système.
 
-
 ```python
 class MetaFunction(type):
     """ Metaclass purement cosmetique, pour économiser quelques lignes de code
@@ -127,22 +121,22 @@ class MetaFunction(type):
         return cls.forward(*args, **kwargs) #type: ignore
 
 
-class Function(metaclass=MetaFunction): 
+class Function(metaclass=MetaFunction):
     """ Class Abstraite Function
-    
-        Celles-ci permettent de définir les opérations élémentaires nécessaires à la 
+
+        Celles-ci permettent de définir les opérations élémentaires nécessaires à la
         backpropagation
 
         Les methods _forward et _backward doivent être override pour definir respectivement
         le calcul d'une operation et son gradient.
 
         Les methods forward et backward fournissent un wrapper autour des methods citées ci-dessus.
-    """    
+    """
     def __init__(self, *inputs: Tensor):
         raise ValueError("Functions are static classes which shouldn't be instanciated")
-        ...   
+        ...
 
-    @staticmethod   
+    @staticmethod
     def _forward(inputs: list[TensorLike]) -> TensorLike:
         raise NotImplementedError('Function class needs to be inherited and implement _forward and _backward')
 
@@ -150,25 +144,25 @@ class Function(metaclass=MetaFunction):
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         raise NotImplementedError('Function class needs to be inherited and implement _forward and _backward')
 
-    @classmethod   
+    @classmethod
     def forward(cls, *inputs: Tensor) -> Tensor:
         return Tensor(
             value=cls._forward([input_.value for input_ in inputs]),
             gradfn=cls.backward,
             inputs=inputs
-        ) 
-        
+        )
+
     @classmethod
     def backward(cls, inputs: Sequence[Tensor], grad_output: Tensor) -> list[Tensor]:
         grad = cls._backward([input_.value for input_ in inputs], grad_output.value)
-        tensor_grads = [] 
+        tensor_grads = []
         for index, input_ in enumerate(inputs):
             if not input_.grad:
-                input_.grad = Tensor(0.) 
+                input_.grad = Tensor(0.)
             input_.grad.value += grad[index] #type: ignore
             tensor_grads.append(input_.grad)
         return tensor_grads
-    
+
 
 ```
 
@@ -192,7 +186,6 @@ Voici un aperçu des opérations et de leurs gradients :
 
 Ces classes d'opérations servent de base pour construire des calculs plus complexes dans le système d'autodifférenciation. Elles sont utilisées pour définir comment les gradients sont calculés pour différentes opérations mathématiques.
 
-
 ```python
 from numpy import dot, exp, log, maximum, sum as np_sum, ones_like, outer, zeros_like
 
@@ -207,7 +200,7 @@ class Add(Function):
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         """d(x+y)/dx = 1 , d(x+y)/dy = 1 """
         return [grad_output, grad_output]
-    
+
 class Mul(Function):
     """ Operation de multiplication """
 
@@ -220,7 +213,7 @@ class Mul(Function):
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         """ d(x*y)/dx = y , d(x*y)/dy = x"""
         return [inputs[1]*grad_output, inputs[0]*grad_output]  # type: ignore
-    
+
 class Pow(Function):
     """ Operation de power (exposant) """
 
@@ -235,9 +228,9 @@ class Pow(Function):
         res = [
             grad_output*inputs[1]*inputs[0]**(inputs[1] - 1),  # type: ignore
             grad_output*log(maximum(inputs[0], 0))*inputs[0]**(inputs[1])  # type: ignore
-         ]     
-        return res    
-    
+         ]
+        return res
+
 class Dot(Function):
     """ Operation de produit Matrice x Vecteur"""
 
@@ -245,15 +238,15 @@ class Dot(Function):
     def _forward(inputs: list[TensorLike]) -> TensorLike:
         """ (A, x) => Ax """
         return inputs[0] @ inputs[1] # type: ignore
-    
+
     @staticmethod
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         """ d(Ax)/dA = x.T , d(Ax)/dx = A """
-        return [    
+        return [
             outer(grad_output, inputs[1]),  # type: ignore
             inputs[0].T @ grad_output # type: ignore
         ]
-    
+
 class Sum(Function):
     """ Operation de sommation d'un vecteur"""
 
@@ -261,14 +254,14 @@ class Sum(Function):
     def _forward(inputs: list[TensorLike]) -> TensorLike:
         """ (x1,x2,x3,x4) => x1+x2+x3+x4"""
         return np_sum(inputs[0]) # type: ignore
-    
+
     @staticmethod
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         """ d(sum(v))/dv = (1,1,1,1)"""
         return [
-            ones_like(inputs[0]) * grad_output 
+            ones_like(inputs[0]) * grad_output
         ]
-    
+
 class Log(Function):
     """ Operation de Log"""
 
@@ -283,7 +276,7 @@ class Log(Function):
         return [
             grad_output/inputs[0] #type: ignore
         ]
-    
+
 class Exp(Function):
 
     @staticmethod
@@ -302,34 +295,34 @@ class Neg(Function):
     @staticmethod
     def _forward(inputs: list[TensorLike]) -> TensorLike:
         return - inputs[0] #type: ignore
-    
+
     @staticmethod
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         return [
             (-1)*ones_like(inputs[0])*grad_output #type: ignore
         ]
-    
+
 class Sub(Function):
     """ Soustraction """
 
     @staticmethod
     def _forward(inputs: list[TensorLike]) -> TensorLike:
         return inputs[0] - inputs[1] #type: ignore
-    
+
     @staticmethod
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         return [
-            ones_like(inputs[0])*grad_output,  #type: ignore          
-            (-1)*ones_like(inputs[1])*grad_output, #type: ignore            
+            ones_like(inputs[0])*grad_output,  #type: ignore
+            (-1)*ones_like(inputs[1])*grad_output, #type: ignore
         ]
-    
+
 class Div(Function):
     """ Division """
 
     @staticmethod
     def _forward(inputs: list[TensorLike]) -> TensorLike:
         return inputs[0]/inputs[1] #type: ignore
-    
+
     @staticmethod
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         return [
@@ -347,22 +340,21 @@ class ReLU(Function):
     def _forward(inputs: list[TensorLike]) -> TensorLike:
         """ (x) => max(x, 0)"""
         return maximum(inputs[0], 0) #type: ignore
-    
+
     @staticmethod
     def _backward(inputs: list[TensorLike], grad_output: TensorLike) -> list[TensorLike]:
         """ drelu(x)/dx = 0 si x <= 0 et 1 sinon"""
         res = zeros_like(inputs[0])
         res[inputs[0] > 0] = 1 #type: ignore
         return [
-            res*grad_output            
+            res*grad_output
         ]
 ```
 
 # Surcharge des Opérateurs pour les Tenseurs
 
-Pour effectuer plus explicitement les opérations entre `Tensor`, on surcharge les différents opérateurs. 
+Pour effectuer plus explicitement les opérations entre `Tensor`, on surcharge les différents opérateurs.
 Ces surcharges facilitent l'expression des opérations mathématiques sur les tenseurs de manière naturelle et intuitive.
-
 
 ```python
 Tensor.__mul__ = lambda self, other: Mul(self, tensor(other))
@@ -389,7 +381,6 @@ On définit chacune de ces fonctions avec nos `Tensor` pour pouvoir les dériver
 
 On implémente aussi une `accuracy` pour voir les scores que l'on obtient.
 
-
 ```python
 from numpy import mean
 
@@ -399,7 +390,7 @@ def binary_cross_entropy(y_prob_preds: Tensor, y_true: Tensor) -> Tensor:
 def sigmoid(x: Tensor) -> Tensor:
     return 1/(1 + Exp(-x)) # type: ignore
 
-def accuracy(y_true: NDArray, y_preds: NDArray): 
+def accuracy(y_true: NDArray, y_preds: NDArray):
     return mean(y_true == y_preds)
 
 ```
@@ -414,6 +405,7 @@ Dans cet exemple, nous créons un réseau de neurones à deux couches, notées A
 - `z` : La sortie du réseau de neurones.
 
 Le calcul de `z` se déroule comme suit :
+
 1. Le vecteur d'entrée `x` est propagé à travers la couche A en effectuant d'abord une multiplication matricielle avec A, puis en appliquant la fonction d'activation ReLU à chaque élément du résultat.
 2. Le résultat de la couche A est ensuite propagé à travers la couche B de la même manière, en effectuant une multiplication matricielle avec B et en appliquant à nouveau la fonction d'activation ReLU.
 3. Les sorties de la couche B sont ensuite passées à travers la fonction d'activation sigmoid pour obtenir des valeurs dans l'intervalle (0, 1).
@@ -421,14 +413,12 @@ Le calcul de `z` se déroule comme suit :
 
 Cet exemple illustre comment utiliser les opérations définies précédemment pour construire un réseau de neurones avec différentes couches et fonctions d'activation. La rétropropagation des gradients à travers ce réseau permettrait d'ajuster les poids pour l'apprentissage.
 
-
 ```python
 A = Tensor([[4., -2], [-1,2], [5,2]])
 B = Tensor([[3,2,1], [1,-1,1], [-1, 0., 2]])
 x = Tensor([2., -3])
 z: Tensor = Sum(sigmoid(ReLU(B @ ReLU(A @ x)))) #type: ignore
 ```
-
 
 ```python
 z.backward()
@@ -444,18 +434,16 @@ print("Gradient de B: ", B.grad)
     Gradient de B:  tensor(value=[[1.47428643e-19 0.00000000e+00 4.21224694e-20]
      [2.13219710e-07 0.00000000e+00 6.09199171e-08]
      [0.00000000e+00 0.00000000e+00 0.00000000e+00]])
-    
 
 # Régression Logistique
 
-Pour tester notre framework, nous allons maintenant implémenter une régression logistique. 
-
+Pour tester notre framework, nous allons maintenant implémenter une régression logistique.
 
 ```python
 # application a regression logistique
 from numpy.random import normal
 
-class LogisticRegression: 
+class LogisticRegression:
 
     def __init__(self, input_size: int):
         self.weight = Tensor(normal(size=(1, input_size)))
@@ -465,8 +453,8 @@ class LogisticRegression:
         return self.weight, self.bias
 
     def __call__(self, x: Tensor):
-        return sigmoid(self.weight @ x + self.bias) #type: ignore 
-    
+        return sigmoid(self.weight @ x + self.bias) #type: ignore
+
     def predict(self, X: NDArray, threshold = 0.5):
         return array([self(Tensor(x)).value[0] > threshold for x in X]) #type: ignore
 ```
@@ -475,9 +463,8 @@ class LogisticRegression:
 
 On définit aussi une classe d'optimisateur par la descente de gradient avec pas constant. Comme notre exemple est très simple, on tel optimisateur suffira.
 
-
 ```python
-class GradientOptimizer: 
+class GradientOptimizer:
 
     def __init__(self, parameters: Sequence[Tensor], lr: float = 1e-4):
         self.parameters = parameters
@@ -500,11 +487,10 @@ class GradientOptimizer:
 
 Dans cette section, nous chargeons le célèbre jeu de données Iris à partir de la bibliothèque scikit-learn (sklearn). Cependant, nous transformons ce jeu de données en un problème de classification binaire en supprimant toutes les instances de la classe 2. Ensuite, nous effectuons une permutation aléatoire des données pour mélanger l'ordre des échantillons.
 
-Le résultat de cette transformation est stocké dans les tableaux NumPy `X` et `Y`. 
+Le résultat de cette transformation est stocké dans les tableaux NumPy `X` et `Y`.
+
 - `X` contient les caractéristiques des échantillons.
 - `Y` contient les étiquettes de classe correspondantes (0 ou 1) pour la classification binaire.
-
-
 
 ```python
 from sklearn import datasets
@@ -516,14 +502,11 @@ def load_binary_iris():
     y = iris['target']
     y = y[~(y == 2)]
     shuffle = np.random.permutation(len(y))
-    return X[shuffle],y[shuffle] 
+    return X[shuffle],y[shuffle]
 
 X, Y = load_binary_iris()
 Y
 ```
-
-
-
 
     array([0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1,
            0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1,
@@ -531,12 +514,9 @@ Y
            1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1,
            1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0])
 
-
-
 # Création du Modèle de Régression Logistique et Entraînement
 
 On instancie un model de régression logistique ainsi qu'un optimisateur, auquel on attache les parametres de la régression.
-
 
 ```python
 log_reg = LogisticRegression(input_size=4)
@@ -546,9 +526,8 @@ print("Accuracy: ", accuracy(log_reg.predict(X), Y))
 # environ 0.5 car le jeu de donnees est equilibre
 ```
 
-    Avant entrainement: 
+    Avant entrainement:
     Accuracy:  0.5
-    
 
 # Entraînement du Modèle de Régression Logistique
 
@@ -563,7 +542,6 @@ Dans cette section, nous définissons une fonction `train` qui prend en entrée 
   6. Met à jour les paramètres du modèle en utilisant l'optimiseur avec `optim.step()`.
 
 Ce processus permet au modèle d'apprendre à partir des données d'entraînement et d'ajuster ses paramètres pour minimiser la perte, ce qui améliore sa capacité à effectuer des prédictions précises.
-
 
 ```python
 def train(model: LogisticRegression, X ,Y):
@@ -587,23 +565,18 @@ train(log_reg, X, Y)
     loss:  tensor(value=0.09458624352179655)
     loss:  tensor(value=0.9043151819906351)
     loss:  tensor(value=0.5423726686021525)
-    
-
 
 ```python
 print("Apres entrainement: ")
 print("Accuracy: ", accuracy(log_reg.predict(X), Y))
 ```
 
-    Apres entrainement: 
+    Apres entrainement:
     Accuracy:  1.0
-    
 
 # Visualisation des Prédictions du Modèle
 
 On a une bonne `accuracy` avec le model. On va plot les points pour voir nos résultats
-
-
 
 ```python
 import seaborn as sns
@@ -619,12 +592,7 @@ def plot_model(model: LogisticRegression, X, Y):
 plot_model(log_reg, X, Y)
 ```
 
-
-    
 ![png](torch_autograd_files/torch_autograd_28_0.png)
-    
-
-
 
 ```python
 
