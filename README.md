@@ -100,7 +100,7 @@ def tensor(value: TensorLike, inputs: Sequence['Tensor'] = [], gradfn: BackwardF
 
 # Classe MetaFunction et Classe Abstraite Function
 
-La classe `MetaFunction` est une métaclasse qui simplifie permet d'appeler la méthode static `forward` des classes `Function` en les appelant, au lieu de les instancier. Cela permet d'économiser quelques lignes de code.
+La classe `MetaFunction` est une métaclasse qui permet d'appeler la méthode static `forward` des classes `Function` en les appelant. Cela permet d'économiser quelques lignes de code.
 
 La classe `Function` est une classe abstraite qui définit les opérations élémentaires nécessaires à la backpropagation dans le système d'autodifférenciation. Elle permet de créer des opérations personnalisées en héritant de cette classe.
 
